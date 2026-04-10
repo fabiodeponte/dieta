@@ -103,6 +103,39 @@ function App() {
   const [qtyFood, setQtyFood] = useState(null); // food being qty-picked
   const [qtyVal, setQtyVal] = useState("1");
   const fileRef = useRef();
+  const importRef = useRef();
+
+  const exportData = () => {
+    const data = {};
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i);
+      if (k.startsWith("dieta_")) data[k] = localStorage.getItem(k);
+    }
+    const blob = new Blob([JSON.stringify(data, null, 2)], {type:"application/json"});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a"); a.href = url; a.download = "dieta_backup.json"; a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const importData = (e) => {
+    const file = e.target.files?.[0]; if (!file) return;
+    e.target.value = "";
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      try {
+        const data = JSON.parse(ev.target.result);
+        let count = 0;
+        Object.entries(data).forEach(([k, v]) => {
+          if (k.startsWith("dieta_")) { localStorage.setItem(k, v); count++; }
+        });
+        const sf = LS.get("foods_v2"); if (sf) setFoods(sf);
+        const sl = LS.get("log_"+currentDate); if (sl) setLog(sl);
+        const sk = LS.get("api_key"); if (sk) { setApiKey(sk); setApiKeyInput(sk); }
+        alert("Importati " + count + " elementi!");
+      } catch (err) { alert("Errore nel file: " + err.message); }
+    };
+    reader.readAsText(file);
+  };
 
   // Load log when date changes
   useEffect(() => { setLog(LS.get("log_"+currentDate) || []); }, [currentDate]);
@@ -469,6 +502,18 @@ Se non riesci a leggere un valore, metti 0.`}
           </button>
           {apiKey&&<div style={{fontSize:12,color:C.green,marginTop:8}}>✓ Chiave configurata</div>}
           <div style={{fontSize:11,color:C.t2,marginTop:12}}>La chiave viene salvata solo sul tuo dispositivo e usata esclusivamente per analizzare le foto delle etichette nutrizionali via API Anthropic.</div>
+
+          <div style={{borderTop:"1px solid #333",marginTop:24,paddingTop:20}}>
+            <div style={{fontSize:12,color:C.t2,fontFamily:"'DM Mono',monospace",letterSpacing:1,marginBottom:12}}>BACKUP DATI</div>
+            <button onClick={exportData} style={{...SBtn(C.card2),width:"100%",fontSize:14,marginBottom:10}}>
+              📤 Esporta dati (JSON)
+            </button>
+            <button onClick={()=>importRef.current?.click()} style={{...SBtn(C.card2),width:"100%",fontSize:14}}>
+              📥 Importa dati (JSON)
+            </button>
+            <input ref={importRef} type="file" accept=".json,application/json" onChange={importData} style={{display:"none"}}/>
+            <div style={{fontSize:11,color:C.t2,marginTop:10}}>Usa l'esportazione per trasferire i dati tra browser e webapp, o come backup di sicurezza.</div>
+          </div>
         </div>
       </>}
     </div>
