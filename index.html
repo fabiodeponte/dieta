@@ -30,13 +30,13 @@ const {useState, useEffect, useRef, useCallback} = React;
 
 const DAYS_IT = ["DOMENICA","LUNEDI","MARTEDI","MERCOLEDI","GIOVEDI","VENERDI","SABATO"];
 const TARGETS = {
-  LUNEDI:{label:"Pochi carboidrati",kcal:1100,carb:11,fat:34,prot:177,fib:0},
-  MARTEDI:{label:"Medi carboidrati",kcal:1300,carb:73,fat:36,prot:172,fib:14},
-  MERCOLEDI:{label:"Medi carboidrati",kcal:1300,carb:73,fat:36,prot:172,fib:14},
-  GIOVEDI:{label:"Molti carboidrati",kcal:1600,carb:231,fat:17,prot:131,fib:33},
-  VENERDI:{label:"Medi carboidrati",kcal:1300,carb:73,fat:36,prot:172,fib:14},
-  SABATO:{label:"Medi carboidrati",kcal:1300,carb:73,fat:36,prot:172,fib:14},
-  DOMENICA:{label:"Molti carboidrati",kcal:1600,carb:231,fat:17,prot:131,fib:33},
+  LUNEDI:{label:"Pochi carboidrati",kcal:1400,carb:14,fat:44,prot:226,fib:0},
+  MARTEDI:{label:"Medi carboidrati",kcal:1600,carb:90,fat:44,prot:211,fib:18},
+  MERCOLEDI:{label:"Molti carboidrati",kcal:2000,carb:289,fat:21,prot:164,fib:41},
+  GIOVEDI:{label:"Pochi carboidrati",kcal:1400,carb:14,fat:44,prot:226,fib:0},
+  VENERDI:{label:"Medi carboidrati",kcal:1600,carb:90,fat:44,prot:211,fib:18},
+  SABATO:{label:"Medi carboidrati",kcal:1600,carb:90,fat:44,prot:211,fib:18},
+  DOMENICA:{label:"Molti carboidrati",kcal:2000,carb:289,fat:21,prot:164,fib:41},
 };
 
 const DEFAULT_FOODS = [
@@ -100,6 +100,8 @@ function App() {
   const [apiKeyInput, setApiKeyInput] = useState("");
   const [statsData, setStatsData] = useState([]);
   const [nf, setNf] = useState({name:"",kcal:"",carb:"",fat:"",prot:"",fib:"",portion:""});
+  const [qtyFood, setQtyFood] = useState(null); // food being qty-picked
+  const [qtyVal, setQtyVal] = useState("1");
   const fileRef = useRef();
 
   // Load log when date changes
@@ -266,7 +268,7 @@ Se non riesci a leggere un valore, metti 0.`}
                   <input value={editName} onChange={ev=>setEditName(ev.target.value)} onBlur={confirmEdit} onKeyDown={ev=>ev.key==="Enter"&&confirmEdit()} autoFocus
                     style={{width:"100%",boxSizing:"border-box",background:C.card2,border:"1px solid #444",borderRadius:6,padding:"6px 8px",color:C.t1,fontSize:14,fontWeight:500,outline:"none"}}/>
                 ):(
-                  <div onClick={()=>startEdit(e)} style={{fontSize:14,fontWeight:500,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",cursor:"pointer"}}>{e.qty>1?`${e.qty}× `:""}{e.name}</div>
+                  <div onClick={()=>startEdit(e)} style={{fontSize:14,fontWeight:500,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",cursor:"pointer"}}>{e.qty!==1?`${e.qty}× `:""}{e.name}</div>
                 )}
                 <div style={{fontSize:11,color:C.t2,fontFamily:"'DM Mono',monospace",marginTop:2}}>
                   {Math.round(e.kcal*e.qty)} kcal · C{Math.round(e.carb*e.qty)} · G{Math.round(e.fat*e.qty)} · P{Math.round(e.prot*e.qty)}
@@ -295,13 +297,36 @@ Se non riesci a leggere un valore, metti 0.`}
         </div>
         <div style={{padding:"0 20px",paddingBottom:30}}>
           {filtered.map(f=>(
-            <button key={f.id} onClick={()=>addFood(f)} style={{display:"block",width:"100%",textAlign:"left",background:C.card,border:"none",borderRadius:12,padding:"12px 14px",marginBottom:6,cursor:"pointer"}}>
+            <button key={f.id} onClick={()=>{setQtyFood(f);setQtyVal("1")}} style={{display:"block",width:"100%",textAlign:"left",background:C.card,border:"none",borderRadius:12,padding:"12px 14px",marginBottom:6,cursor:"pointer"}}>
               <div style={{fontSize:14,fontWeight:500,color:C.t1}}>{f.name}</div>
               <div style={{fontSize:11,color:C.t2,fontFamily:"'DM Mono',monospace",marginTop:2}}>{f.kcal} kcal · C{f.carb} · G{f.fat} · P{f.prot} · F{f.fib} — {f.portion}</div>
             </button>
           ))}
           {filtered.length===0&&<div style={{color:C.t2,textAlign:"center",padding:20}}>Nessun risultato</div>}
         </div>
+
+        {/* Qty picker modal */}
+        {qtyFood&&(
+          <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.7)",display:"flex",alignItems:"flex-end",justifyContent:"center",zIndex:100}} onClick={()=>setQtyFood(null)}>
+            <div style={{background:C.card,borderRadius:"20px 20px 0 0",padding:"24px 20px 32px",width:"100%",maxWidth:430}} onClick={e=>e.stopPropagation()}>
+              <div style={{fontSize:16,fontWeight:600,marginBottom:4}}>{qtyFood.name}</div>
+              <div style={{fontSize:12,color:C.t2,marginBottom:16}}>{qtyFood.portion}</div>
+              <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:8}}>
+                <label style={{fontSize:13,color:C.t2}}>Quantità:</label>
+                <div style={{display:"flex",alignItems:"center",gap:8}}>
+                  <button onClick={()=>setQtyVal(String(Math.max(0.5,parseFloat(qtyVal||1)-0.5)))} style={{...SBtn(C.card2),padding:"8px 14px",fontSize:18}}>−</button>
+                  <input value={qtyVal} onChange={e=>setQtyVal(e.target.value)} type="number" inputMode="decimal" step="0.5" min="0.5"
+                    style={{width:60,textAlign:"center",background:C.card2,border:"1px solid #444",borderRadius:8,padding:"8px",color:C.t1,fontSize:18,fontWeight:700,outline:"none",fontFamily:"'DM Mono',monospace"}}/>
+                  <button onClick={()=>setQtyVal(String(parseFloat(qtyVal||1)+0.5))} style={{...SBtn(C.card2),padding:"8px 14px",fontSize:18}}>+</button>
+                </div>
+              </div>
+              <div style={{fontSize:12,color:C.t2,fontFamily:"'DM Mono',monospace",marginBottom:16}}>
+                = {Math.round(qtyFood.kcal*(parseFloat(qtyVal)||1))} kcal · C{Math.round(qtyFood.carb*(parseFloat(qtyVal)||1))} · G{Math.round(qtyFood.fat*(parseFloat(qtyVal)||1))} · P{Math.round(qtyFood.prot*(parseFloat(qtyVal)||1))}
+              </div>
+              <button onClick={()=>{addFood(qtyFood,parseFloat(qtyVal)||1);setQtyFood(null)}} style={{...SBtn(C.accent),width:"100%"}}>Aggiungi</button>
+            </div>
+          </div>
+        )}
       </>}
 
       {/* ── ADD NEW ── */}
@@ -335,13 +360,18 @@ Se non riesci a leggere un valore, metti 0.`}
               <div style={{background:C.card,borderRadius:14,padding:18,marginBottom:16}}>
                 <input value={scanResult.name} onChange={e=>setScanResult({...scanResult,name:e.target.value})}
                   style={{...SInput,fontSize:17,fontWeight:600,marginBottom:12,background:C.card2}} placeholder="Nome prodotto"/>
-                {[{l:"Calorie",v:scanResult.kcal,u:"kcal"},{l:"Carboidrati",v:scanResult.carb,u:"g"},{l:"Grassi",v:scanResult.fat,u:"g"},{l:"Proteine",v:scanResult.prot,u:"g"},{l:"Fibre",v:scanResult.fib,u:"g"}].map(r=>(
-                  <div key={r.l} style={{display:"flex",justifyContent:"space-between",padding:"6px 0",borderBottom:`1px solid ${C.card2}`,fontSize:14}}>
-                    <span style={{color:C.t2}}>{r.l}</span>
-                    <span style={{fontFamily:"'DM Mono',monospace"}}>{r.v} {r.u}</span>
+                {[{l:"Calorie (kcal)",k:"kcal"},{l:"Carboidrati (g)",k:"carb"},{l:"Grassi (g)",k:"fat"},{l:"Proteine (g)",k:"prot"},{l:"Fibre (g)",k:"fib"}].map(r=>(
+                  <div key={r.k} style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"6px 0",borderBottom:`1px solid ${C.card2}`}}>
+                    <span style={{color:C.t2,fontSize:13}}>{r.l}</span>
+                    <input value={scanResult[r.k]} onChange={e=>setScanResult({...scanResult,[r.k]:e.target.value})}
+                      type="number" inputMode="decimal" style={{width:70,textAlign:"right",background:C.card2,border:"1px solid #444",borderRadius:6,padding:"4px 8px",color:C.t1,fontSize:14,fontFamily:"'DM Mono',monospace",outline:"none"}}/>
                   </div>
                 ))}
-                <div style={{fontSize:12,color:C.t2,marginTop:8}}>Porzione: {scanResult.portion}</div>
+                <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"8px 0"}}>
+                  <span style={{color:C.t2,fontSize:13}}>Porzione</span>
+                  <input value={scanResult.portion} onChange={e=>setScanResult({...scanResult,portion:e.target.value})}
+                    style={{width:120,textAlign:"right",background:C.card2,border:"1px solid #444",borderRadius:6,padding:"4px 8px",color:C.t1,fontSize:13,outline:"none"}}/>
+                </div>
               </div>
               <button onClick={saveScanResult} style={{...SBtn(C.accent),width:"100%"}}>Conferma e aggiungi</button>
             </div>
