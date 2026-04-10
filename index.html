@@ -14,8 +14,8 @@
 <style>
 *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 html,body{background:#0D0D0D;color:#F0EDE6;font-family:'DM Sans','Helvetica Neue',sans-serif;-webkit-font-smoothing:antialiased;overscroll-behavior:none}
-#root{max-width:430px;margin:0 auto;min-height:100vh;min-height:100dvh;padding-bottom:100px}
-input{font-family:inherit}
+#root{max-width:430px;margin:0 auto;min-height:100vh;min-height:100dvh;padding-bottom:100px;padding-top:env(safe-area-inset-top)}
+input{font-family:inherit;font-size:16px}
 @keyframes spin{to{transform:rotate(360deg)}}
 .spinner{width:32px;height:32px;border:3px solid #333;border-top-color:#E8572A;border-radius:50%;animation:spin .8s linear infinite}
 </style>
@@ -216,15 +216,17 @@ Se non riesci a leggere un valore, metti 0.`}
 
       {/* ── HOME ── */}
       {view==="home"&&<>
-        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"16px 20px 8px"}}>
+        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"12px 20px 0"}}>
           <button onClick={()=>shiftDate(-1)} style={SB}>◂</button>
-          <div style={{textAlign:"center"}}>
+          <div style={{textAlign:"center",flex:1}}>
             <div style={{fontSize:13,color:C.t2,fontFamily:"'DM Mono',monospace",letterSpacing:1}}>{dayName(currentDate)}</div>
             <div style={{fontSize:18,fontWeight:700}}>{isToday?"Oggi":formatDate(currentDate)}</div>
             <div style={{fontSize:11,color:C.accent,fontWeight:600,marginTop:2}}>{target.label.toUpperCase()}</div>
           </div>
           <button onClick={()=>shiftDate(1)} style={SB}>▸</button>
-          <button onClick={()=>{setApiKeyInput(apiKey);setView("settings")}} style={{...SB,fontSize:18}}>⚙</button>
+        </div>
+        <div style={{display:"flex",justifyContent:"flex-end",padding:"0 20px"}}>
+          <button onClick={()=>{setApiKeyInput(apiKey);setView("settings")}} style={{background:"none",border:"none",color:C.t2,fontSize:13,padding:"4px 0",cursor:"pointer",fontFamily:"'DM Sans',sans-serif"}}>⚙ Impostazioni</button>
         </div>
 
         <div style={{padding:"12px 20px"}}>
@@ -279,7 +281,7 @@ Se non riesci a leggere un valore, metti 0.`}
           ))}
         </div>
 
-        <div style={{position:"fixed",bottom:0,left:"50%",transform:"translateX(-50%)",width:"100%",maxWidth:430,background:"linear-gradient(transparent, #0D0D0D 30%)",padding:"30px 20px 24px",display:"flex",gap:10}}>
+        <div style={{position:"fixed",bottom:0,left:"50%",transform:"translateX(-50%)",width:"100%",maxWidth:430,background:"linear-gradient(transparent, #0D0D0D 30%)",padding:"30px 20px calc(24px + env(safe-area-inset-bottom))",display:"flex",gap:10}}>
           <button onClick={()=>{setView("stats");loadStats()}} style={{...SBtn(C.card2),width:52}}>📊</button>
           <button onClick={()=>setView("add")} style={{...SBtn(C.accent),flex:1}}>+ Aggiungi alimento</button>
           <button onClick={()=>fileRef.current?.click()} style={{...SBtn(C.card2),width:52}}>📷</button>
