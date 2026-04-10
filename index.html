@@ -118,9 +118,15 @@ function App() {
   const [apiKeyInput, setApiKeyInput] = useState("");
   const [statsData, setStatsData] = useState([]);
   const [profile, setProfile] = useState(() => LS.get("profile") || null);
+  const [customTargets, setCustomTargets] = useState(() => LS.get("custom_targets") || null);
   const [obProfile, setObProfile] = useState({gender:"M",height:"",weight:"",age:""});
   const [obStep, setObStep] = useState(0); // 0=disclaimer, 1=form
-  const TARGETS = profile ? scaledTargets(profile) : BASE_TARGETS;
+  const [editingTargets, setEditingTargets] = useState(false);
+  const calcTargets = profile ? scaledTargets(profile) : BASE_TARGETS;
+  const TARGETS = (()=>{
+    if (!customTargets) return calcTargets;
+    const m={}; for (const d of Object.keys(calcTargets)) m[d]=customTargets[d]?{...calcTargets[d],...customTargets[d]}:calcTargets[d]; return m;
+  })();
   const [nf, setNf] = useState({name:"",kcal:"",carb:"",fat:"",prot:"",fib:"",portion:""});
   const [qtyFood, setQtyFood] = useState(null); // food being qty-picked
   const [qtyVal, setQtyVal] = useState("1");
@@ -274,14 +280,15 @@ Se non riesci a leggere un valore, metti 0.`}
         <div style={{padding:"20px",minHeight:"100vh",display:"flex",flexDirection:"column",justifyContent:"center"}}>
           {obStep===0&&<>
             <div style={{fontSize:28,fontWeight:700,marginBottom:8,lineHeight:1.2}}>Dieta Tracker</div>
-            <div style={{fontSize:14,color:C.t2,marginBottom:24,lineHeight:1.5}}>Ciclizzazione dei carboidrati</div>
+            <div style={{fontSize:14,color:C.t2,marginBottom:24,lineHeight:1.5}}>Monitoraggio alimentare</div>
 
             <div style={{background:C.card,borderRadius:14,padding:18,marginBottom:20,fontSize:13,lineHeight:1.7,color:C.t2}}>
               <p style={{marginBottom:12,color:C.t1,fontWeight:600,fontSize:14}}>⚠ Leggi attentamente prima di iniziare</p>
-              <p style={{marginBottom:12}}>Questa app ti aiuta a seguire una dieta dimagrante basata sulla <span style={{color:C.t1}}>ciclizzazione dei carboidrati</span>. L'obiettivo è alternare giorni a basso, medio e alto apporto di carboidrati per mantenere il metabolismo attivo: nei giorni "high carb" l'organismo riceve il segnale di non rallentare, così nei giorni successivi a basso apporto calorico va ad attaccare le riserve di grasso.</p>
-              <p style={{marginBottom:12}}>Questa dieta è <span style={{color:C.t1}}>concepita esclusivamente per dimagrire</span>, non per mettere massa muscolare. È una dieta impegnativa che richiede costanza e disciplina.</p>
-              <p style={{marginBottom:12,color:C.accent,fontWeight:500}}>È sempre consigliabile consultare un nutrizionista prima di iniziare qualsiasi regime alimentare.</p>
-              <p style={{color:C.red,fontWeight:600}}>È assolutamente sconsigliato seguire questa dieta in presenza di qualsiasi problema di salute, condizione medica preesistente, disturbi alimentari, gravidanza o allattamento. In caso di dubbi, rivolgersi al proprio medico.</p>
+              <p style={{marginBottom:12}}>Questa app è uno <span style={{color:C.t1}}>strumento di monitoraggio alimentare</span>. Ti permette di registrare quello che mangi e confrontarlo con i limiti giornalieri che hai impostato.</p>
+              <p style={{marginBottom:12}}>Di default, l'app propone uno schema dimagrante basato sulla <span style={{color:C.t1}}>ciclizzazione dei carboidrati</span>, calibrato per un livello di attività fisica moderata. Questo schema <span style={{color:C.t1}}>non è stato realizzato da un nutrizionista né da un medico</span>, ma dall'autore sulla base di esperienze personali e letture.</p>
+              <p style={{marginBottom:12}}>Tutti i valori giornalieri sono <span style={{color:C.t1}}>completamente modificabili</span> nelle impostazioni: puoi adattarli a qualsiasi regime alimentare, incluso quello prescritto dal tuo nutrizionista o medico.</p>
+              <p style={{marginBottom:12}}>L'app include una lista di alimenti predefiniti a cui puoi aggiungerne di nuovi in qualsiasi momento, anche <span style={{color:C.t1}}>inquadrando con la fotocamera la tabella nutrizionale</span> sulla confezione di un prodotto. Per ogni alimento puoi indicare il numero di porzioni consumate, anche frazionarie (es. 0.5, 1.5).</p>
+              <p style={{color:C.red,fontWeight:600}}>Consulta sempre un professionista prima di iniziare qualsiasi dieta. L'uso di questa app è sconsigliato in presenza di problemi di salute, condizioni mediche preesistenti, disturbi alimentari, gravidanza o allattamento.</p>
             </div>
 
             <button onClick={()=>setObStep(1)} style={{...SBtn(C.accent),width:"100%",fontSize:16}}>
@@ -614,6 +621,49 @@ Se non riesci a leggere un valore, metti 0.`}
               <div style={{fontSize:11,color:C.t2}}>Es. lunedì: {t.kcal} kcal · C{t.carb}g · G{t.fat}g · P{t.prot}g</div>
             </div>;
           })()}
+
+          <div style={{borderTop:"1px solid #333",marginTop:24,paddingTop:20}}>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
+              <div style={{fontSize:12,color:C.t2,fontFamily:"'DM Mono',monospace",letterSpacing:1}}>LIMITI GIORNALIERI</div>
+              <button onClick={()=>setEditingTargets(!editingTargets)} style={{background:"none",border:"none",color:C.accent,fontSize:12,cursor:"pointer",fontFamily:"'DM Sans',sans-serif"}}>
+                {editingTargets?"Chiudi":"Modifica"}
+              </button>
+            </div>
+            {!editingTargets&&<div style={{fontSize:11,color:C.t2,marginBottom:8}}>Valori calcolati dal tuo profilo. Tocca "Modifica" per personalizzarli (es. su indicazione di un nutrizionista).</div>}
+            {editingTargets&&<>
+              <div style={{fontSize:11,color:C.t2,marginBottom:12}}>Modifica i valori per ciascun giorno. I campi vuoti usano il valore calcolato dal profilo.</div>
+              {["LUNEDI","MARTEDI","MERCOLEDI","GIOVEDI","VENERDI","SABATO","DOMENICA"].map(day=>{
+                const ct=calcTargets[day]; const cu=customTargets?.[day]||{};
+                const dayLabel={LUNEDI:"Lunedì",MARTEDI:"Martedì",MERCOLEDI:"Mercoledì",GIOVEDI:"Giovedì",VENERDI:"Venerdì",SABATO:"Sabato",DOMENICA:"Domenica"}[day];
+                return <div key={day} style={{background:C.card,borderRadius:12,padding:14,marginBottom:8}}>
+                  <div style={{fontSize:13,fontWeight:600,marginBottom:2}}>{dayLabel}</div>
+                  <div style={{fontSize:10,color:C.accent,marginBottom:8}}>{ct.label}</div>
+                  <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:6}}>
+                    {[{k:"kcal",l:"Calorie"},{k:"carb",l:"Carb (g)"},{k:"fat",l:"Grassi (g)"},{k:"prot",l:"Proteine (g)"},{k:"fib",l:"Fibre (g)"}].map(f=>(
+                      <div key={f.k}>
+                        <label style={{fontSize:9,color:C.t2}}>{f.l}</label>
+                        <input value={cu[f.k]!==undefined?cu[f.k]:""} placeholder={String(ct[f.k])}
+                          onChange={e=>{
+                            const val=e.target.value; const newCu={...cu};
+                            if(val==="") { delete newCu[f.k]; } else { newCu[f.k]=parseFloat(val)||0; }
+                            const newCT={...(customTargets||{})}; 
+                            if(Object.keys(newCu).length===0) { delete newCT[day]; } else { newCT[day]=newCu; }
+                            const final=Object.keys(newCT).length>0?newCT:null;
+                            setCustomTargets(final); LS.set("custom_targets",final);
+                          }}
+                          type="number" inputMode="decimal"
+                          style={{width:"100%",boxSizing:"border-box",background:C.card2,border:cu[f.k]!==undefined?"1px solid "+C.accent:"1px solid #333",borderRadius:6,padding:"6px 8px",color:C.t1,fontSize:13,fontFamily:"'DM Mono',monospace",outline:"none"}}/>
+                      </div>
+                    ))}
+                  </div>
+                </div>;
+              })}
+              {customTargets&&<button onClick={()=>{setCustomTargets(null);LS.set("custom_targets",null)}}
+                style={{fontSize:12,color:C.t2,background:"none",border:"none",padding:"4px 0",cursor:"pointer",textDecoration:"underline",marginBottom:8}}>
+                Ripristina tutti i valori calcolati
+              </button>}
+            </>}
+          </div>
 
           <div style={{borderTop:"1px solid #333",marginTop:24,paddingTop:20}}>
           <div style={{fontSize:12,color:C.t2,fontFamily:"'DM Mono',monospace",letterSpacing:1,marginBottom:12}}>SCANSIONE ETICHETTE</div>
