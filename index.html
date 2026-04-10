@@ -29,7 +29,7 @@ input{font-family:inherit;font-size:16px}
 const {useState, useEffect, useRef, useCallback} = React;
 
 const DAYS_IT = ["DOMENICA","LUNEDI","MARTEDI","MERCOLEDI","GIOVEDI","VENERDI","SABATO"];
-const TARGETS = {
+const BASE_TARGETS = {
   LUNEDI:{label:"Pochi carboidrati",kcal:1400,carb:14,fat:44,prot:226,fib:0},
   MARTEDI:{label:"Medi carboidrati",kcal:1600,carb:90,fat:44,prot:211,fib:18},
   MERCOLEDI:{label:"Molti carboidrati",kcal:2000,carb:289,fat:21,prot:164,fib:41},
@@ -38,6 +38,24 @@ const TARGETS = {
   SABATO:{label:"Medi carboidrati",kcal:1600,carb:90,fat:44,prot:211,fib:18},
   DOMENICA:{label:"Molti carboidrati",kcal:2000,carb:289,fat:21,prot:164,fib:41},
 };
+
+// Reference profile: the person these targets were designed for
+const REF_PROFILE = {gender:"M",height:182,weight:85,age:49};
+function calcBMR(p) {
+  const base = 10*p.weight + 6.25*p.height - 5*p.age;
+  return p.gender==="F" ? base - 161 : base + 5;
+}
+const REF_BMR = calcBMR(REF_PROFILE);
+
+function scaledTargets(profile) {
+  if (!profile) return BASE_TARGETS;
+  const ratio = calcBMR(profile) / REF_BMR;
+  const scaled = {};
+  for (const [day, t] of Object.entries(BASE_TARGETS)) {
+    scaled[day] = {label:t.label, kcal:Math.round(t.kcal*ratio), carb:Math.round(t.carb*ratio), fat:Math.round(t.fat*ratio), prot:Math.round(t.prot*ratio), fib:Math.round(t.fib*ratio)};
+  }
+  return scaled;
+}
 
 const DEFAULT_FOODS = [
   {id:"f1",name:"Olio (1 cucchiaio)",kcal:50,carb:0,fat:5.5,prot:0,fib:0,portion:"1 cucchiaio"},
@@ -86,7 +104,7 @@ const LS = {
 };
 
 function App() {
-  const [view, setView] = useState("home");
+  const [view, setView] = useState(() => LS.get("profile") ? "home" : "onboarding");
   const [foods, setFoods] = useState(() => LS.get("foods_v2") || DEFAULT_FOODS);
   const [log, setLog] = useState(() => LS.get("log_"+todayKey()) || []);
   const [currentDate, setCurrentDate] = useState(todayKey());
@@ -99,6 +117,10 @@ function App() {
   const [apiKey, setApiKey] = useState(() => LS.get("api_key") || "");
   const [apiKeyInput, setApiKeyInput] = useState("");
   const [statsData, setStatsData] = useState([]);
+  const [profile, setProfile] = useState(() => LS.get("profile") || null);
+  const [obProfile, setObProfile] = useState({gender:"M",height:"",weight:"",age:""});
+  const [obStep, setObStep] = useState(0); // 0=disclaimer, 1=form
+  const TARGETS = profile ? scaledTargets(profile) : BASE_TARGETS;
   const [nf, setNf] = useState({name:"",kcal:"",carb:"",fat:"",prot:"",fib:"",portion:""});
   const [qtyFood, setQtyFood] = useState(null); // food being qty-picked
   const [qtyVal, setQtyVal] = useState("1");
@@ -246,6 +268,79 @@ Se non riesci a leggere un valore, metti 0.`}
   return (
     <div>
       <input ref={fileRef} type="file" accept="image/*" capture="environment" onChange={handleScan} style={{display:"none"}}/>
+
+      {/* ── ONBOARDING ── */}
+      {view==="onboarding"&&<>
+        <div style={{padding:"20px",minHeight:"100vh",display:"flex",flexDirection:"column",justifyContent:"center"}}>
+          {obStep===0&&<>
+            <div style={{fontSize:28,fontWeight:700,marginBottom:8,lineHeight:1.2}}>Dieta Tracker</div>
+            <div style={{fontSize:14,color:C.t2,marginBottom:24,lineHeight:1.5}}>Ciclizzazione dei carboidrati</div>
+
+            <div style={{background:C.card,borderRadius:14,padding:18,marginBottom:20,fontSize:13,lineHeight:1.7,color:C.t2}}>
+              <p style={{marginBottom:12,color:C.t1,fontWeight:600,fontSize:14}}>⚠ Leggi attentamente prima di iniziare</p>
+              <p style={{marginBottom:12}}>Questa app ti aiuta a seguire una dieta dimagrante basata sulla <span style={{color:C.t1}}>ciclizzazione dei carboidrati</span>. L'obiettivo è alternare giorni a basso, medio e alto apporto di carboidrati per mantenere il metabolismo attivo: nei giorni "high carb" l'organismo riceve il segnale di non rallentare, così nei giorni successivi a basso apporto calorico va ad attaccare le riserve di grasso.</p>
+              <p style={{marginBottom:12}}>Questa dieta è <span style={{color:C.t1}}>concepita esclusivamente per dimagrire</span>, non per mettere massa muscolare. È una dieta impegnativa che richiede costanza e disciplina.</p>
+              <p style={{marginBottom:12,color:C.accent,fontWeight:500}}>È sempre consigliabile consultare un nutrizionista prima di iniziare qualsiasi regime alimentare.</p>
+              <p style={{color:C.red,fontWeight:600}}>È assolutamente sconsigliato seguire questa dieta in presenza di qualsiasi problema di salute, condizione medica preesistente, disturbi alimentari, gravidanza o allattamento. In caso di dubbi, rivolgersi al proprio medico.</p>
+            </div>
+
+            <button onClick={()=>setObStep(1)} style={{...SBtn(C.accent),width:"100%",fontSize:16}}>
+              Ho capito, continua
+            </button>
+          </>}
+
+          {obStep===1&&<>
+            <div style={{fontSize:22,fontWeight:700,marginBottom:4}}>I tuoi dati</div>
+            <div style={{fontSize:13,color:C.t2,marginBottom:20,lineHeight:1.5}}>Servono per calcolare i limiti giornalieri personalizzati di calorie e macronutrienti.</div>
+
+            <div style={{marginBottom:16}}>
+              <label style={{fontSize:12,color:C.t2,display:"block",marginBottom:8}}>Genere</label>
+              <div style={{display:"flex",gap:8}}>
+                {["M","F"].map(g=>(
+                  <button key={g} onClick={()=>setObProfile({...obProfile,gender:g})}
+                    style={{...SBtn(obProfile.gender===g?C.accent:C.card2),flex:1,padding:"12px",fontSize:15}}>
+                    {g==="M"?"♂ Uomo":"♀ Donna"}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {[{k:"height",l:"Altezza (cm)",ph:"175"},{k:"weight",l:"Peso (kg)",ph:"80"},{k:"age",l:"Età",ph:"35"}].map(f=>(
+              <div key={f.k} style={{marginBottom:14}}>
+                <label style={{fontSize:12,color:C.t2,display:"block",marginBottom:4}}>{f.l}</label>
+                <input value={obProfile[f.k]} onChange={e=>setObProfile({...obProfile,[f.k]:e.target.value})}
+                  type="number" inputMode="decimal" placeholder={f.ph}
+                  style={{...SInput,fontSize:16,fontFamily:"'DM Mono',monospace"}}/>
+              </div>
+            ))}
+
+            {(()=>{
+              const h=parseFloat(obProfile.height), w=parseFloat(obProfile.weight), a=parseFloat(obProfile.age);
+              const valid = h>100 && h<250 && w>30 && w<300 && a>14 && a<100;
+              if (valid) {
+                const p={gender:obProfile.gender,height:h,weight:w,age:a};
+                const bmr=calcBMR(p);
+                const t=scaledTargets(p);
+                return <>
+                  <div style={{background:C.card2,borderRadius:10,padding:14,marginBottom:16,fontSize:12,color:C.t2}}>
+                    <div style={{marginBottom:6}}>BMR stimato: <span style={{color:C.t1,fontFamily:"'DM Mono',monospace",fontWeight:600}}>{Math.round(bmr)} kcal/giorno</span></div>
+                    <div>Esempio lunedì (low carb): <span style={{color:C.t1,fontFamily:"'DM Mono',monospace"}}>{t.LUNEDI.kcal} kcal</span> · C{t.LUNEDI.carb}g · G{t.LUNEDI.fat}g · P{t.LUNEDI.prot}g</div>
+                  </div>
+                  <button onClick={()=>{setProfile(p);LS.set("profile",p);setView("home")}}
+                    style={{...SBtn(C.accent),width:"100%",fontSize:16}}>
+                    Inizia
+                  </button>
+                </>;
+              }
+              return <button disabled style={{...SBtn(C.card2),width:"100%",fontSize:16,opacity:0.4}}>Compila tutti i campi</button>;
+            })()}
+
+            <button onClick={()=>setObStep(0)} style={{background:"none",border:"none",color:C.t2,fontSize:13,marginTop:12,cursor:"pointer",padding:8}}>
+              ◂ Indietro
+            </button>
+          </>}
+        </div>
+      </>}
 
       {/* ── HOME ── */}
       {view==="home"&&<>
@@ -493,7 +588,36 @@ Se non riesci a leggere un valore, metti 0.`}
           <span style={{fontSize:17,fontWeight:600}}>Impostazioni</span>
         </div>
         <div style={{padding:"12px 20px"}}>
-          <label style={{fontSize:12,color:C.t2,display:"block",marginBottom:6}}>API Key Anthropic (per scansione etichette)</label>
+          <div style={{fontSize:12,color:C.t2,fontFamily:"'DM Mono',monospace",letterSpacing:1,marginBottom:12}}>PROFILO FISICO</div>
+          <div style={{fontSize:11,color:C.t2,marginBottom:12}}>Modifica i tuoi dati per ricalcolare i limiti giornalieri.</div>
+          <div style={{display:"flex",gap:8,marginBottom:10}}>
+            {["M","F"].map(g=>(
+              <button key={g} onClick={()=>{if(profile){const p={...profile,gender:g};setProfile(p);LS.set("profile",p)}}}
+                style={{...SBtn(profile?.gender===g?C.accent:C.card2),flex:1,padding:"10px",fontSize:14}}>
+                {g==="M"?"♂ Uomo":"♀ Donna"}
+              </button>
+            ))}
+          </div>
+          {[{k:"height",l:"Altezza (cm)"},{k:"weight",l:"Peso (kg)"},{k:"age",l:"Età"}].map(f=>(
+            <div key={f.k} style={{marginBottom:10}}>
+              <label style={{fontSize:11,color:C.t2,display:"block",marginBottom:4}}>{f.l}</label>
+              <input value={profile?.[f.k]||""} onChange={e=>{if(profile){const p={...profile,[f.k]:parseFloat(e.target.value)||0};setProfile(p);LS.set("profile",p)}}}
+                type="number" inputMode="decimal"
+                style={{...SInput,fontSize:14,fontFamily:"'DM Mono',monospace"}}/>
+            </div>
+          ))}
+          {profile&&(()=>{
+            const bmr=calcBMR(profile);
+            const t=TARGETS.LUNEDI;
+            return <div style={{background:C.card2,borderRadius:10,padding:12,marginBottom:8}}>
+              <div style={{fontSize:12,color:C.t2,marginBottom:4}}>BMR stimato: <span style={{color:C.t1,fontFamily:"'DM Mono',monospace"}}>{Math.round(bmr)} kcal</span></div>
+              <div style={{fontSize:11,color:C.t2}}>Es. lunedì: {t.kcal} kcal · C{t.carb}g · G{t.fat}g · P{t.prot}g</div>
+            </div>;
+          })()}
+
+          <div style={{borderTop:"1px solid #333",marginTop:24,paddingTop:20}}>
+          <div style={{fontSize:12,color:C.t2,fontFamily:"'DM Mono',monospace",letterSpacing:1,marginBottom:12}}>SCANSIONE ETICHETTE</div>
+          <label style={{fontSize:12,color:C.t2,display:"block",marginBottom:6}}>API Key Anthropic</label>
           <input value={apiKeyInput} onChange={e=>setApiKeyInput(e.target.value)} type="password" placeholder="sk-ant-..."
             style={{...SInput,fontSize:14,fontFamily:"'DM Mono',monospace"}}/>
           <button onClick={()=>{setApiKey(apiKeyInput);LS.set("api_key",apiKeyInput)}}
@@ -502,6 +626,7 @@ Se non riesci a leggere un valore, metti 0.`}
           </button>
           {apiKey&&<div style={{fontSize:12,color:C.green,marginTop:8}}>✓ Chiave configurata</div>}
           <div style={{fontSize:11,color:C.t2,marginTop:12}}>La chiave viene salvata solo sul tuo dispositivo e usata esclusivamente per analizzare le foto delle etichette nutrizionali via API Anthropic.</div>
+          </div>
 
           <div style={{borderTop:"1px solid #333",marginTop:24,paddingTop:20}}>
             <div style={{fontSize:12,color:C.t2,fontFamily:"'DM Mono',monospace",letterSpacing:1,marginBottom:12}}>BACKUP DATI</div>
