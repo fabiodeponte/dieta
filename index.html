@@ -132,6 +132,7 @@ function App() {
   const [qtyVal, setQtyVal] = useState("1");
   const [mealPlan, setMealPlan] = useState(null);
   const [mealPlanLoading, setMealPlanLoading] = useState(false);
+  const [dietPref, setDietPref] = useState(() => LS.get("diet_pref") || "none");
   const fileRef = useRef();
   const importRef = useRef();
 
@@ -228,7 +229,7 @@ function App() {
 
   // Camera / OCR
   // IMPORTANT: Replace this URL with your Cloudflare Worker URL after deploying
-  const WORKER_URL = "https://dieta-scan.YOUR-SUBDOMAIN.workers.dev";
+  const WORKER_URL = "https://dieta-scan.fabio-deponte.workers.dev";
 
   const handleScan = async (e) => {
     const file = e.target.files?.[0]; if(!file) return;
@@ -292,7 +293,7 @@ Usa sempre i valori per 100g. Se non riesci a leggere un valore, metti 0.`}
           foods: foods.map(f=>({name:f.name,kcal:f.kcal,carb:f.carb,fat:f.fat,prot:f.prot,fib:f.fib,portion:f.portion})),
           targets: target,
           consumed: totals,
-          preferences: "vegetariano"
+          preferences: dietPref !== "none" ? dietPref : null
         })
       });
       const data = await resp.json();
@@ -368,6 +369,18 @@ Usa sempre i valori per 100g. Se non riesci a leggere un valore, metti 0.`}
                   style={{...SInput,fontSize:16,fontFamily:"'DM Mono',monospace"}}/>
               </div>
             ))}
+
+            <div style={{marginBottom:16}}>
+              <label style={{fontSize:12,color:C.t2,display:"block",marginBottom:8}}>Alimentazione</label>
+              <div style={{display:"flex",gap:8}}>
+                {[{k:"none",l:"Onnivoro"},{k:"vegetariano",l:"Vegetariano"},{k:"vegano",l:"Vegano"}].map(o=>(
+                  <button key={o.k} onClick={()=>{setDietPref(o.k);LS.set("diet_pref",o.k)}}
+                    style={{...SBtn(dietPref===o.k?C.accent:C.card2),flex:1,padding:"10px",fontSize:13}}>
+                    {o.l}
+                  </button>
+                ))}
+              </div>
+            </div>
 
             {(()=>{
               const h=parseFloat(obProfile.height), w=parseFloat(obProfile.weight), a=parseFloat(obProfile.age);
@@ -705,6 +718,19 @@ Usa sempre i valori per 100g. Se non riesci a leggere un valore, metti 0.`}
               <div style={{fontSize:11,color:C.t2}}>Es. lunedì: {t.kcal} kcal · C{t.carb}g · G{t.fat}g · P{t.prot}g</div>
             </div>;
           })()}
+
+          <div style={{borderTop:"1px solid #333",marginTop:24,paddingTop:20}}>
+            <div style={{fontSize:12,color:C.t2,fontFamily:"'DM Mono',monospace",letterSpacing:1,marginBottom:12}}>ALIMENTAZIONE</div>
+            <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
+              {[{k:"none",l:"Onnivoro"},{k:"vegetariano",l:"Vegetariano"},{k:"vegano",l:"Vegano"}].map(o=>(
+                <button key={o.k} onClick={()=>{setDietPref(o.k);LS.set("diet_pref",o.k)}}
+                  style={{...SBtn(dietPref===o.k?C.accent:C.card2),padding:"8px 16px",fontSize:13}}>
+                  {o.l}
+                </button>
+              ))}
+            </div>
+            <div style={{fontSize:11,color:C.t2,marginTop:8}}>Usato dal piano pasti AI per proporre alimenti compatibili.</div>
+          </div>
 
           <div style={{borderTop:"1px solid #333",marginTop:24,paddingTop:20}}>
             <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
