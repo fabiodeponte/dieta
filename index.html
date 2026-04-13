@@ -128,11 +128,8 @@ function App() {
     const m={}; for (const d of Object.keys(calcTargets)) m[d]=customTargets[d]?{...calcTargets[d],...customTargets[d]}:calcTargets[d]; return m;
   })();
   const [nf, setNf] = useState({name:"",kcal:"",carb:"",fat:"",prot:"",fib:"",portion:""});
-  const [qtyFood, setQtyFood] = useState(null); // food being qty-picked
+  const [qtyFood, setQtyFood] = useState(null);
   const [qtyVal, setQtyVal] = useState("1");
-  const [mealPlan, setMealPlan] = useState(null);
-  const [mealPlanLoading, setMealPlanLoading] = useState(false);
-  const [dietPref, setDietPref] = useState(() => LS.get("diet_pref") || "none");
   const fileRef = useRef();
   const importRef = useRef();
 
@@ -185,10 +182,10 @@ function App() {
 
   const target = TARGETS[dayName(currentDate)] || TARGETS.MARTEDI;
 
-  const addFood = (food, qty=1, stayOnView=false) => {
+  const addFood = (food, qty=1) => {
     const entry = {id:Date.now()+Math.random(),foodId:food.id,name:food.name,kcal:food.kcal,carb:food.carb,fat:food.fat,prot:food.prot,fib:food.fib,qty};
     saveLog([...log,entry]);
-    if (!stayOnView) { setView("home"); setSearch(""); }
+    setView("home"); setSearch("");
   };
 
   const removeEntry = id => saveLog(log.filter(e=>e.id!==id));
@@ -281,34 +278,6 @@ Usa sempre i valori per 100g. Se non riesci a leggere un valore, metti 0.`}
     addFood(food); setScanResult(null);
   };
 
-  const requestMealPlan = async () => {
-    setMealPlanLoading(true); setMealPlan(null); setView("mealplan");
-    try {
-      const target = TARGETS[dayName(currentDate)] || TARGETS.MARTEDI;
-      const resp = await fetch(WORKER_URL, {
-        method:"POST",
-        headers:{"Content-Type":"application/json"},
-        body:JSON.stringify({
-          action: "mealplan",
-          foods: foods.map(f=>({name:f.name,kcal:f.kcal,carb:f.carb,fat:f.fat,prot:f.prot,fib:f.fib,portion:f.portion})),
-          targets: target,
-          consumed: totals,
-          preferences: dietPref !== "none" ? dietPref : null,
-          claudeKey: apiKey || null
-        })
-      });
-      const data = await resp.json();
-      if (data.error) { setMealPlan({error:data.error}); }
-      else { setMealPlan(data); }
-    } catch(err) { setMealPlan({error:err.message}); }
-    setMealPlanLoading(false);
-  };
-
-  const addMealItem = (foodName, qty) => {
-    const food = foods.find(f => f.name === foodName);
-    if (food) addFood(food, qty, true);
-  };
-
   const shiftDate = n => { const d=new Date(currentDate+"T12:00:00"); d.setDate(d.getDate()+n); setCurrentDate(dateKey(d)); };
   const isToday = currentDate===todayKey();
   const pct = (v,m) => m>0?Math.min(v/m*100,100):0;
@@ -370,18 +339,6 @@ Usa sempre i valori per 100g. Se non riesci a leggere un valore, metti 0.`}
                   style={{...SInput,fontSize:16,fontFamily:"'DM Mono',monospace"}}/>
               </div>
             ))}
-
-            <div style={{marginBottom:16}}>
-              <label style={{fontSize:12,color:C.t2,display:"block",marginBottom:8}}>Alimentazione</label>
-              <div style={{display:"flex",gap:8}}>
-                {[{k:"none",l:"Onnivoro"},{k:"vegetariano",l:"Vegetariano"},{k:"vegano",l:"Vegano"}].map(o=>(
-                  <button key={o.k} onClick={()=>{setDietPref(o.k);LS.set("diet_pref",o.k)}}
-                    style={{...SBtn(dietPref===o.k?C.accent:C.card2),flex:1,padding:"10px",fontSize:13}}>
-                    {o.l}
-                  </button>
-                ))}
-              </div>
-            </div>
 
             {(()=>{
               const h=parseFloat(obProfile.height), w=parseFloat(obProfile.weight), a=parseFloat(obProfile.age);
@@ -479,10 +436,9 @@ Usa sempre i valori per 100g. Se non riesci a leggere un valore, metti 0.`}
         </div>
 
         <div style={{position:"fixed",bottom:0,left:"50%",transform:"translateX(-50%)",width:"100%",maxWidth:430,background:"linear-gradient(transparent, #0D0D0D 30%)",padding:"30px 20px calc(24px + env(safe-area-inset-bottom))",display:"flex",gap:10}}>
-          <button onClick={()=>{setView("stats");loadStats()}} style={{...SBtn(C.card2),width:44}}>📊</button>
-          <button onClick={requestMealPlan} style={{...SBtn(C.card2),width:44}}>🍽</button>
-          <button onClick={()=>setView("add")} style={{...SBtn(C.accent),flex:1}}>+ Aggiungi</button>
-          <button onClick={()=>fileRef.current?.click()} style={{...SBtn(C.card2),width:44}}>📷</button>
+          <button onClick={()=>{setView("stats");loadStats()}} style={{...SBtn(C.card2),width:52}}>📊</button>
+          <button onClick={()=>setView("add")} style={{...SBtn(C.accent),flex:1}}>+ Aggiungi alimento</button>
+          <button onClick={()=>fileRef.current?.click()} style={{...SBtn(C.card2),width:52}}>📷</button>
         </div>
       </>}
 
@@ -587,41 +543,6 @@ Usa sempre i valori per 100g. Se non riesci a leggere un valore, metti 0.`}
         </div>
       </>}
 
-      {/* ── MEAL PLAN ── */}
-      {view==="mealplan"&&<>
-        <div style={{padding:"16px 20px 8px",display:"flex",alignItems:"center",gap:12}}>
-          <button onClick={()=>setView("home")} style={SBack}>◂</button>
-          <span style={{fontSize:17,fontWeight:600}}>Piano pasti</span>
-        </div>
-        <div style={{padding:"12px 20px"}}>
-          {mealPlanLoading&&<div style={{textAlign:"center",padding:40}}><div className="spinner" style={{margin:"0 auto"}}/><div style={{color:C.t2,marginTop:12}}>Gemini sta preparando il tuo piano...</div></div>}
-          {mealPlan?.error&&<div style={{color:C.red,padding:20,textAlign:"center"}}>{mealPlan.error}</div>}
-          {mealPlan?.meals&&<>
-            {mealPlan.meals.map((meal,mi)=>(
-              <div key={mi} style={{background:C.card,borderRadius:14,padding:16,marginBottom:12}}>
-                <div style={{fontSize:15,fontWeight:600,marginBottom:10,color:C.accent}}>{meal.name}</div>
-                {meal.items.map((item,ii)=>{
-                  const food = foods.find(f=>f.name===item.food);
-                  return <div key={ii} style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"8px 0",borderBottom:ii<meal.items.length-1?`1px solid ${C.card2}`:"none"}}>
-                    <div style={{flex:1,minWidth:0}}>
-                      <div style={{fontSize:13,fontWeight:500}}>{item.qty!==1?`${item.qty}× `:""}{item.food}</div>
-                      {food&&<div style={{fontSize:11,color:C.t2,fontFamily:"'DM Mono',monospace",marginTop:2}}>
-                        {Math.round(food.kcal*item.qty)} kcal · C{Math.round(food.carb*item.qty)} · G{Math.round(food.fat*item.qty)} · P{Math.round(food.prot*item.qty)}
-                      </div>}
-                    </div>
-                    <button onClick={()=>{addMealItem(item.food,item.qty);}} style={{...SBtn(C.card2),padding:"6px 12px",fontSize:12}}>+ Aggiungi</button>
-                  </div>;
-                })}
-              </div>
-            ))}
-            {mealPlan.note&&<div style={{fontSize:12,color:C.t2,fontStyle:"italic",padding:"8px 0",lineHeight:1.5}}>{mealPlan.note}</div>}
-            <button onClick={()=>{
-              if(mealPlan?.meals) { mealPlan.meals.forEach(meal=>meal.items.forEach(item=>addMealItem(item.food,item.qty))); setView("home"); }
-            }} style={{...SBtn(C.accent),width:"100%",marginTop:8}}>Aggiungi tutto al diario</button>
-          </>}
-        </div>
-      </>}
-
       {/* ── STATS ── */}
       {view==="stats"&&<>
         <div style={{padding:"16px 20px 8px",display:"flex",alignItems:"center",gap:12}}>
@@ -719,19 +640,6 @@ Usa sempre i valori per 100g. Se non riesci a leggere un valore, metti 0.`}
               <div style={{fontSize:11,color:C.t2}}>Es. lunedì: {t.kcal} kcal · C{t.carb}g · G{t.fat}g · P{t.prot}g</div>
             </div>;
           })()}
-
-          <div style={{borderTop:"1px solid #333",marginTop:24,paddingTop:20}}>
-            <div style={{fontSize:12,color:C.t2,fontFamily:"'DM Mono',monospace",letterSpacing:1,marginBottom:12}}>ALIMENTAZIONE</div>
-            <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
-              {[{k:"none",l:"Onnivoro"},{k:"vegetariano",l:"Vegetariano"},{k:"vegano",l:"Vegano"}].map(o=>(
-                <button key={o.k} onClick={()=>{setDietPref(o.k);LS.set("diet_pref",o.k)}}
-                  style={{...SBtn(dietPref===o.k?C.accent:C.card2),padding:"8px 16px",fontSize:13}}>
-                  {o.l}
-                </button>
-              ))}
-            </div>
-            <div style={{fontSize:11,color:C.t2,marginTop:8}}>Usato dal piano pasti AI per proporre alimenti compatibili.</div>
-          </div>
 
           <div style={{borderTop:"1px solid #333",marginTop:24,paddingTop:20}}>
             <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
