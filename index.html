@@ -225,29 +225,48 @@ function App() {
   };
 
   // Camera / OCR
+  // IMPORTANT: Replace this URL with your Cloudflare Worker URL after deploying
+  const WORKER_URL = "https://dieta-scan.fabio-deponte.workers.dev";
+
   const handleScan = async (e) => {
     const file = e.target.files?.[0]; if(!file) return;
     e.target.value="";
     setScanProcessing(true); setScanResult(null); setView("scan");
     try {
-      if (!apiKey) { setScanResult({error:true,detail:"API key non configurata. Vai in ⚙ Impostazioni."}); setScanProcessing(false); return; }
       const b64 = await new Promise((res,rej)=>{const r=new FileReader();r.onload=()=>res(r.result.split(",")[1]);r.onerror=()=>rej(new Error("read fail"));r.readAsDataURL(file);});
       const mediaType = file.type || "image/jpeg";
-      const resp = await fetch("https://api.anthropic.com/v1/messages",{
-        method:"POST",
-        headers:{"Content-Type":"application/json","x-api-key":apiKey,"anthropic-version":"2023-06-01","anthropic-dangerous-direct-browser-access":"true"},
-        body:JSON.stringify({model:"claude-sonnet-4-20250514",max_tokens:1000,messages:[{role:"user",content:[
-          {type:"image",source:{type:"base64",media_type:mediaType,data:b64}},
-          {type:"text",text:`Questa è la tabella nutrizionale di un prodotto alimentare. Estrai i valori nutrizionali e rispondi SOLO con un JSON valido (senza backtick markdown) con questi campi esatti:
-{"name":"nome del prodotto se visibile, altrimenti 'Prodotto scansionato'","kcal":numero calorie per porzione o per 100g,"carb":carboidrati in grammi,"fat":grassi in grammi,"prot":proteine in grammi,"fib":fibre in grammi,"portion":"porzione di riferimento es. '100 g'"}
-Se non riesci a leggere un valore, metti 0.`}
-        ]}]})
-      });
-      const data = await resp.json();
-      if (data.error) { setScanResult({error:true,detail:data.error.message||JSON.stringify(data.error)}); setScanProcessing(false); return; }
-      const text = data.content?.map(c=>c.text||"").join("")||"";
-      const clean = text.replace(/```json|```/g,"").trim();
-      setScanResult(JSON.parse(clean));
+
+      let parsed;
+
+      if (apiKey) {
+        // Use Claude API with user's own key
+        const resp = await fetch("https://api.anthropic.com/v1/messages",{
+          method:"POST",
+          headers:{"Content-Type":"application/json","x-api-key":apiKey,"anthropic-version":"2023-06-01","anthropic-dangerous-direct-browser-access":"true"},
+          body:JSON.stringify({model:"claude-sonnet-4-20250514",max_tokens:1000,messages:[{role:"user",content:[
+            {type:"image",source:{type:"base64",media_type:mediaType,data:b64}},
+            {type:"text",text:`Questa è la tabella nutrizionale di un prodotto alimentare. Estrai i valori nutrizionali e rispondi SOLO con un JSON valido (senza backtick markdown) con questi campi esatti:
+{"name":"nome del prodotto se visibile, altrimenti 'Prodotto scansionato'","kcal":numero calorie per 100g,"carb":carboidrati in grammi per 100g,"fat":grassi in grammi per 100g,"prot":proteine in grammi per 100g,"fib":fibre in grammi per 100g,"portion":"100 g"}
+Usa sempre i valori per 100g. Se non riesci a leggere un valore, metti 0.`}
+          ]}]})
+        });
+        const data = await resp.json();
+        if (data.error) { setScanResult({error:true,detail:data.error.message||JSON.stringify(data.error)}); setScanProcessing(false); return; }
+        const text = data.content?.map(c=>c.text||"").join("")||"";
+        parsed = JSON.parse(text.replace(/```json|```/g,"").trim());
+      } else {
+        // Use Gemini via Cloudflare Worker (no key needed)
+        const resp = await fetch(WORKER_URL, {
+          method:"POST",
+          headers:{"Content-Type":"application/json"},
+          body:JSON.stringify({image:b64, mediaType})
+        });
+        const data = await resp.json();
+        if (data.error) { setScanResult({error:true,detail:data.error}); setScanProcessing(false); return; }
+        parsed = data;
+      }
+
+      setScanResult(parsed);
     } catch(err) { console.error(err); setScanResult({error:true,detail:err.message}); }
     setScanProcessing(false);
   };
@@ -667,15 +686,24 @@ Se non riesci a leggere un valore, metti 0.`}
 
           <div style={{borderTop:"1px solid #333",marginTop:24,paddingTop:20}}>
           <div style={{fontSize:12,color:C.t2,fontFamily:"'DM Mono',monospace",letterSpacing:1,marginBottom:12}}>SCANSIONE ETICHETTE</div>
-          <label style={{fontSize:12,color:C.t2,display:"block",marginBottom:6}}>API Key Anthropic</label>
+          <div style={{fontSize:11,color:C.t2,marginBottom:12}}>La scansione delle etichette nutrizionali funziona automaticamente tramite Google Gemini. Se preferisci, puoi inserire una tua API key Anthropic (Claude) per usarla al posto di Gemini.</div>
+          <div style={{background:C.card2,borderRadius:10,padding:12,marginBottom:12}}>
+            <div style={{fontSize:12,color:apiKey?C.t2:C.green}}>📡 {apiKey?"Gemini (disattivato — si usa Claude)":"Gemini AI (attivo)"}</div>
+          </div>
+          <label style={{fontSize:12,color:C.t2,display:"block",marginBottom:6}}>API Key Anthropic (opzionale)</label>
           <input value={apiKeyInput} onChange={e=>setApiKeyInput(e.target.value)} type="password" placeholder="sk-ant-..."
             style={{...SInput,fontSize:14,fontFamily:"'DM Mono',monospace"}}/>
-          <button onClick={()=>{setApiKey(apiKeyInput);LS.set("api_key",apiKeyInput)}}
-            style={{...SBtn(C.accent),width:"100%",marginTop:12,opacity:apiKeyInput?1:0.4}}>
-            {apiKey?"Aggiorna chiave":"Salva chiave"}
-          </button>
-          {apiKey&&<div style={{fontSize:12,color:C.green,marginTop:8}}>✓ Chiave configurata</div>}
-          <div style={{fontSize:11,color:C.t2,marginTop:12}}>La chiave viene salvata solo sul tuo dispositivo e usata esclusivamente per analizzare le foto delle etichette nutrizionali via API Anthropic.</div>
+          <div style={{display:"flex",gap:8,marginTop:12}}>
+            <button onClick={()=>{setApiKey(apiKeyInput);LS.set("api_key",apiKeyInput)}}
+              style={{...SBtn(C.accent),flex:1,opacity:apiKeyInput?1:0.4}}>
+              Salva
+            </button>
+            {apiKey&&<button onClick={()=>{setApiKey("");setApiKeyInput("");LS.set("api_key","")}}
+              style={{...SBtn(C.card2),flex:1}}>
+              Rimuovi (usa Gemini)
+            </button>}
+          </div>
+          {apiKey&&<div style={{fontSize:12,color:C.green,marginTop:8}}>✓ Claude attivo</div>}
           </div>
 
           <div style={{borderTop:"1px solid #333",marginTop:24,paddingTop:20}}>
