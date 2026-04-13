@@ -130,6 +130,8 @@ function App() {
   const [nf, setNf] = useState({name:"",kcal:"",carb:"",fat:"",prot:"",fib:"",portion:""});
   const [qtyFood, setQtyFood] = useState(null); // food being qty-picked
   const [qtyVal, setQtyVal] = useState("1");
+  const [mealPlan, setMealPlan] = useState(null);
+  const [mealPlanLoading, setMealPlanLoading] = useState(false);
   const fileRef = useRef();
   const importRef = useRef();
 
@@ -182,10 +184,10 @@ function App() {
 
   const target = TARGETS[dayName(currentDate)] || TARGETS.MARTEDI;
 
-  const addFood = (food, qty=1) => {
-    const entry = {id:Date.now(),foodId:food.id,name:food.name,kcal:food.kcal,carb:food.carb,fat:food.fat,prot:food.prot,fib:food.fib,qty};
+  const addFood = (food, qty=1, stayOnView=false) => {
+    const entry = {id:Date.now()+Math.random(),foodId:food.id,name:food.name,kcal:food.kcal,carb:food.carb,fat:food.fat,prot:food.prot,fib:food.fib,qty};
     saveLog([...log,entry]);
-    setView("home"); setSearch("");
+    if (!stayOnView) { setView("home"); setSearch(""); }
   };
 
   const removeEntry = id => saveLog(log.filter(e=>e.id!==id));
@@ -226,7 +228,7 @@ function App() {
 
   // Camera / OCR
   // IMPORTANT: Replace this URL with your Cloudflare Worker URL after deploying
-  const WORKER_URL = "https://dieta-scan.fabio-deponte.workers.dev";
+  const WORKER_URL = "https://dieta-scan.YOUR-SUBDOMAIN.workers.dev";
 
   const handleScan = async (e) => {
     const file = e.target.files?.[0]; if(!file) return;
@@ -276,6 +278,33 @@ Usa sempre i valori per 100g. Se non riesci a leggere un valore, metti 0.`}
     const food={id:"s"+Date.now(),name:scanResult.name||"Prodotto scansionato",kcal:parseFloat(scanResult.kcal)||0,carb:parseFloat(scanResult.carb)||0,fat:parseFloat(scanResult.fat)||0,prot:parseFloat(scanResult.prot)||0,fib:parseFloat(scanResult.fib)||0,portion:scanResult.portion||"1 porzione"};
     const nFoods=[...foods,food]; setFoods(nFoods); LS.set("foods_v2",nFoods);
     addFood(food); setScanResult(null);
+  };
+
+  const requestMealPlan = async () => {
+    setMealPlanLoading(true); setMealPlan(null); setView("mealplan");
+    try {
+      const target = TARGETS[dayName(currentDate)] || TARGETS.MARTEDI;
+      const resp = await fetch(WORKER_URL, {
+        method:"POST",
+        headers:{"Content-Type":"application/json"},
+        body:JSON.stringify({
+          action: "mealplan",
+          foods: foods.map(f=>({name:f.name,kcal:f.kcal,carb:f.carb,fat:f.fat,prot:f.prot,fib:f.fib,portion:f.portion})),
+          targets: target,
+          consumed: totals,
+          preferences: "vegetariano"
+        })
+      });
+      const data = await resp.json();
+      if (data.error) { setMealPlan({error:data.error}); }
+      else { setMealPlan(data); }
+    } catch(err) { setMealPlan({error:err.message}); }
+    setMealPlanLoading(false);
+  };
+
+  const addMealItem = (foodName, qty) => {
+    const food = foods.find(f => f.name === foodName);
+    if (food) addFood(food, qty, true);
   };
 
   const shiftDate = n => { const d=new Date(currentDate+"T12:00:00"); d.setDate(d.getDate()+n); setCurrentDate(dateKey(d)); };
@@ -436,9 +465,10 @@ Usa sempre i valori per 100g. Se non riesci a leggere un valore, metti 0.`}
         </div>
 
         <div style={{position:"fixed",bottom:0,left:"50%",transform:"translateX(-50%)",width:"100%",maxWidth:430,background:"linear-gradient(transparent, #0D0D0D 30%)",padding:"30px 20px calc(24px + env(safe-area-inset-bottom))",display:"flex",gap:10}}>
-          <button onClick={()=>{setView("stats");loadStats()}} style={{...SBtn(C.card2),width:52}}>📊</button>
-          <button onClick={()=>setView("add")} style={{...SBtn(C.accent),flex:1}}>+ Aggiungi alimento</button>
-          <button onClick={()=>fileRef.current?.click()} style={{...SBtn(C.card2),width:52}}>📷</button>
+          <button onClick={()=>{setView("stats");loadStats()}} style={{...SBtn(C.card2),width:44}}>📊</button>
+          <button onClick={requestMealPlan} style={{...SBtn(C.card2),width:44}}>🍽</button>
+          <button onClick={()=>setView("add")} style={{...SBtn(C.accent),flex:1}}>+ Aggiungi</button>
+          <button onClick={()=>fileRef.current?.click()} style={{...SBtn(C.card2),width:44}}>📷</button>
         </div>
       </>}
 
@@ -540,6 +570,41 @@ Usa sempre i valori per 100g. Se non riesci a leggere un valore, metti 0.`}
               <button onClick={()=>setView("addNew")} style={SBtn(C.card2)}>Aggiungi manualmente</button>
             </div>
           )}
+        </div>
+      </>}
+
+      {/* ── MEAL PLAN ── */}
+      {view==="mealplan"&&<>
+        <div style={{padding:"16px 20px 8px",display:"flex",alignItems:"center",gap:12}}>
+          <button onClick={()=>setView("home")} style={SBack}>◂</button>
+          <span style={{fontSize:17,fontWeight:600}}>Piano pasti</span>
+        </div>
+        <div style={{padding:"12px 20px"}}>
+          {mealPlanLoading&&<div style={{textAlign:"center",padding:40}}><div className="spinner" style={{margin:"0 auto"}}/><div style={{color:C.t2,marginTop:12}}>Gemini sta preparando il tuo piano...</div></div>}
+          {mealPlan?.error&&<div style={{color:C.red,padding:20,textAlign:"center"}}>{mealPlan.error}</div>}
+          {mealPlan?.meals&&<>
+            {mealPlan.meals.map((meal,mi)=>(
+              <div key={mi} style={{background:C.card,borderRadius:14,padding:16,marginBottom:12}}>
+                <div style={{fontSize:15,fontWeight:600,marginBottom:10,color:C.accent}}>{meal.name}</div>
+                {meal.items.map((item,ii)=>{
+                  const food = foods.find(f=>f.name===item.food);
+                  return <div key={ii} style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"8px 0",borderBottom:ii<meal.items.length-1?`1px solid ${C.card2}`:"none"}}>
+                    <div style={{flex:1,minWidth:0}}>
+                      <div style={{fontSize:13,fontWeight:500}}>{item.qty!==1?`${item.qty}× `:""}{item.food}</div>
+                      {food&&<div style={{fontSize:11,color:C.t2,fontFamily:"'DM Mono',monospace",marginTop:2}}>
+                        {Math.round(food.kcal*item.qty)} kcal · C{Math.round(food.carb*item.qty)} · G{Math.round(food.fat*item.qty)} · P{Math.round(food.prot*item.qty)}
+                      </div>}
+                    </div>
+                    <button onClick={()=>{addMealItem(item.food,item.qty);}} style={{...SBtn(C.card2),padding:"6px 12px",fontSize:12}}>+ Aggiungi</button>
+                  </div>;
+                })}
+              </div>
+            ))}
+            {mealPlan.note&&<div style={{fontSize:12,color:C.t2,fontStyle:"italic",padding:"8px 0",lineHeight:1.5}}>{mealPlan.note}</div>}
+            <button onClick={()=>{
+              if(mealPlan?.meals) { mealPlan.meals.forEach(meal=>meal.items.forEach(item=>addMealItem(item.food,item.qty))); setView("home"); }
+            }} style={{...SBtn(C.accent),width:"100%",marginTop:8}}>Aggiungi tutto al diario</button>
+          </>}
         </div>
       </>}
 
