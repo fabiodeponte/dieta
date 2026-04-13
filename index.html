@@ -293,7 +293,8 @@ Usa sempre i valori per 100g. Se non riesci a leggere un valore, metti 0.`}
           foods: foods.map(f=>({name:f.name,kcal:f.kcal,carb:f.carb,fat:f.fat,prot:f.prot,fib:f.fib,portion:f.portion})),
           targets: target,
           consumed: totals,
-          preferences: dietPref !== "none" ? dietPref : null
+          preferences: dietPref !== "none" ? dietPref : null,
+          claudeKey: apiKey || null
         })
       });
       const data = await resp.json();
